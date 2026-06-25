@@ -31,9 +31,22 @@ NODE_VERSION=22
 VITE_API_BASE_URL=https://<backend>.up.railway.app/api
 ```
 
-La URL se completa después de generar el dominio público de Railway. El archivo
-`public/_redirects` habilita el fallback de SPA y `public/_headers` agrega
-cabeceras básicas de seguridad.
+Para este despliegue:
+
+```env
+VITE_API_BASE_URL=https://back-production-02fc.up.railway.app/api
+```
+
+El código usa esa misma URL como fallback de producción, por lo que Cloudflare
+queda conectado incluso si la variable no está definida. La variable mantiene
+prioridad y permite cambiar el backend sin modificar el código.
+
+El archivo `public/_redirects` habilita el fallback de SPA y
+`public/_headers` agrega cabeceras básicas de seguridad.
 
 Cuando Cloudflare asigne el dominio, copia su origen exacto, sin `/` final, en
-`ALLOWED_ORIGINS` del servicio API en Railway.
+`ALLOWED_ORIGINS` del servicio API en Railway. El origen actual es:
+
+```env
+ALLOWED_ORIGINS=https://front-38m.pages.dev
+```

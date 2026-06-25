@@ -1,4 +1,9 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/+$/, "");
+const DEFAULT_API_BASE_URL = import.meta.env.PROD
+  ? "https://back-production-02fc.up.railway.app/api"
+  : "/api";
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL
+).replace(/\/+$/, "");
 
 async function request(path, options = {}) {
   const { responseType = "json", ...fetchOptions } = options;
