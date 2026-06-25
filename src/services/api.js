@@ -29,11 +29,14 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     let message = "No se pudo completar la solicitud.";
-    try {
-      const payload = await response.json();
-      message = payload.message || JSON.stringify(payload);
-    } catch {
-      message = await response.text() || message;
+    const responseBody = await response.text();
+    if (responseBody) {
+      try {
+        const payload = JSON.parse(responseBody);
+        message = payload.message || JSON.stringify(payload);
+      } catch {
+        message = responseBody;
+      }
     }
     throw new Error(message);
   }
