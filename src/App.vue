@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import {
   ArrowLeft,
   Building2,
@@ -20,7 +20,7 @@ import {
   ShieldCheck,
   User
 } from "lucide-vue-next";
-import { api, resolveAssetUrl } from "./services/api";
+import { api } from "./services/api";
 
 const session = reactive({
   token: localStorage.getItem("fueltrack_token") || "",
@@ -37,8 +37,8 @@ const showRegisterPassword = ref(false);
 const showPaymentDialog = ref(false);
 
 const loginForm = reactive({
-  email: "cliente@fueltrack.com",
-  password: "123456"
+  email: "",
+  password: ""
 });
 
 const registerForm = reactive({
@@ -55,6 +55,7 @@ const orderDetail = ref(null);
 const paymentMethods = ref([]);
 const paymentHistory = ref([]);
 const profile = ref(null);
+const avatarObjectUrl = ref("");
 
 const newOrder = reactive({
   fuelType: "Diesel B5",
@@ -168,12 +169,40 @@ function logout() {
   session.user = null;
   localStorage.removeItem("fueltrack_token");
   localStorage.removeItem("fueltrack_user");
+  clearAvatar();
   view.value = "login";
+}
+
+function clearAvatar() {
+  if (avatarObjectUrl.value) URL.revokeObjectURL(avatarObjectUrl.value);
+  avatarObjectUrl.value = "";
+}
+
+async function loadAvatar(hasAvatar) {
+  clearAvatar();
+  if (!hasAvatar) return;
+  try {
+    const blob = await api.avatar();
+    avatarObjectUrl.value = URL.createObjectURL(blob);
+  } catch {
+    // El resto del perfil sigue funcionando aunque falle la imagen.
+  }
+}
+
+function handleUnauthorized() {
+  session.token = "";
+  session.user = null;
+  clearAvatar();
+  view.value = "login";
+  error.value = "Tu sesión expiró. Inicia sesión nuevamente.";
 }
 
 async function loadHome() {
   const data = await runTask(() => api.dashboard());
-  if (data) dashboard.value = data;
+  if (data) {
+    dashboard.value = data;
+    await loadAvatar(Boolean(data.avatarUrl));
+  }
 }
 
 async function loadOrders() {
@@ -250,6 +279,7 @@ async function loadProfile() {
   const data = await runTask(() => api.profile());
   if (!data) return;
   profile.value = data;
+  await loadAvatar(Boolean(data.avatarUrl));
   Object.assign(profileForm, {
     companyName: data.companyName || "",
     ruc: data.ruc || "",
@@ -281,6 +311,7 @@ async function uploadAvatar(event) {
   if (!data) return;
   profile.value = data;
   profileForm.avatarUrl = data.avatarUrl || "";
+  await loadAvatar(Boolean(data.avatarUrl));
 }
 
 function readableStatus(status) {
@@ -327,7 +358,13 @@ function initials(name) {
 }
 
 onMounted(() => {
+  window.addEventListener("fueltrack:unauthorized", handleUnauthorized);
   if (session.token) loadHome();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("fueltrack:unauthorized", handleUnauthorized);
+  clearAvatar();
 });
 </script>
 
@@ -343,7 +380,7 @@ onMounted(() => {
     <form v-if="view === 'login'" class="auth-card" @submit.prevent="login">
       <p class="eyebrow">{{ greeting }}</p>
       <h2>Inicia sesion</h2>
-      <p class="muted">Usa el usuario demo o una cuenta creada durante esta ejecucion del backend.</p>
+      <p class="muted">Ingresa con una cuenta registrada en FuelTrack.</p>
 
       <label>
         Correo corporativo
@@ -354,7 +391,7 @@ onMounted(() => {
         Contrasena
         <span class="field">
           <ShieldCheck :size="18" />
-          <input v-model="loginForm.password" :type="showPassword ? 'text' : 'password'" required />
+          <input v-model="loginForm.password" :type="showPassword ? 'text' : 'password'" minlength="8" required />
           <button class="icon-button" type="button" @click="showPassword = !showPassword">
             <EyeOff v-if="showPassword" :size="18" />
             <Eye v-else :size="18" />
@@ -368,7 +405,6 @@ onMounted(() => {
         <span>{{ loading ? "Ingresando..." : "Ingresar" }}</span>
       </button>
 
-      <p class="switch-copy">Usuario demo: <strong>cliente@fueltrack.com</strong> / <strong>123456</strong></p>
       <button class="link-button" type="button" @click="view = 'register'; clearMessages()">Crear cuenta</button>
     </form>
 
@@ -383,14 +419,14 @@ onMounted(() => {
         Contrasena
         <span class="field">
           <ShieldCheck :size="18" />
-          <input v-model="registerForm.password" :type="showRegisterPassword ? 'text' : 'password'" required />
+          <input v-model="registerForm.password" :type="showRegisterPassword ? 'text' : 'password'" minlength="8" required />
           <button class="icon-button" type="button" @click="showRegisterPassword = !showRegisterPassword">
             <EyeOff v-if="showRegisterPassword" :size="18" />
             <Eye v-else :size="18" />
           </button>
         </span>
       </label>
-      <label>Confirmar contrasena <span class="field"><ShieldCheck :size="18" /><input v-model="registerForm.confirmPassword" type="password" required /></span></label>
+      <label>Confirmar contrasena <span class="field"><ShieldCheck :size="18" /><input v-model="registerForm.confirmPassword" type="password" minlength="8" required /></span></label>
       <label class="check-row"><input v-model="registerForm.accepted" type="checkbox" /> Acepto terminos y politica de privacidad.</label>
 
       <p v-if="error" class="alert error">{{ error }}</p>
@@ -438,10 +474,10 @@ onMounted(() => {
           <div>
             <p class="eyebrow">Cuenta empresa activa</p>
             <h2>{{ dashboard?.companyName || 'Cliente FuelTrack SAC' }}</h2>
-            <p>Resumen de cuenta, pedidos activos y movimientos recientes conectados al backend local.</p>
+            <p>Resumen de cuenta, pedidos activos y movimientos recientes.</p>
           </div>
           <div class="avatar" @click="loadProfile">
-            <img v-if="dashboard?.avatarUrl" :src="resolveAssetUrl(dashboard.avatarUrl)" alt="Avatar" />
+            <img v-if="avatarObjectUrl" :src="avatarObjectUrl" alt="Avatar" />
             <span v-else>{{ initials(dashboard?.companyName) }}</span>
           </div>
         </div>
@@ -604,7 +640,7 @@ onMounted(() => {
         <form class="panel-form" @submit.prevent="saveProfile">
           <div class="profile-head">
             <label class="avatar large">
-              <img v-if="profileForm.avatarUrl" :src="resolveAssetUrl(profileForm.avatarUrl)" alt="Avatar" />
+              <img v-if="avatarObjectUrl" :src="avatarObjectUrl" alt="Avatar" />
               <span v-else>{{ initials(profileForm.companyName) }}</span>
               <input type="file" accept="image/*" @change="uploadAvatar" />
             </label>

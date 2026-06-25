@@ -1,20 +1,26 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
-const ASSET_BASE_URL = API_BASE_URL.startsWith("http")
-  ? API_BASE_URL.replace(/\/api\/?$/, "")
-  : "";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/+$/, "");
 
 async function request(path, options = {}) {
+  const { responseType = "json", ...fetchOptions } = options;
   const headers = options.body instanceof FormData
     ? {}
     : { "Content-Type": "application/json" };
+  const token = localStorage.getItem("fueltrack_token");
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers: {
       ...headers,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {})
     }
   });
+
+  if (response.status === 401) {
+    localStorage.removeItem("fueltrack_token");
+    localStorage.removeItem("fueltrack_user");
+    window.dispatchEvent(new CustomEvent("fueltrack:unauthorized"));
+  }
 
   if (!response.ok) {
     let message = "No se pudo completar la solicitud.";
@@ -28,13 +34,8 @@ async function request(path, options = {}) {
   }
 
   if (response.status === 204) return null;
+  if (responseType === "blob") return response.blob();
   return response.json();
-}
-
-export function resolveAssetUrl(url) {
-  if (!url) return "";
-  if (/^https?:\/\//i.test(url)) return url;
-  return `${ASSET_BASE_URL}${url}`;
 }
 
 export const api = {
@@ -71,5 +72,6 @@ export const api = {
       method: "POST",
       body: formData
     });
-  }
+  },
+  avatar: () => request("/profile/avatar", { responseType: "blob" })
 };
