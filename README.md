@@ -1,8 +1,6 @@
 # FuelTrack Frontend
 
-Aplicación Vue 3/Vite preparada para Cloudflare Pages. Consume exclusivamente
-la API de Railway mediante `VITE_API_BASE_URL`; no utiliza credenciales ni una
-URL de MySQL.
+Aplicación Vue 3/Vite preparada para Cloudflare Pages. Consume la API mediante `VITE_API_BASE_URL`; para microservicios esa URL debe apuntar al Gateway.
 
 ## Desarrollo local
 
@@ -11,12 +9,15 @@ npm ci
 npm run dev
 ```
 
-Sin `VITE_API_BASE_URL`, Vite usa `/api` y el proxy local apunta a
-`http://localhost:5101`.
+Sin `VITE_API_BASE_URL`, Vite usa `/api` y el proxy local apunta a:
+
+```text
+http://localhost:5000
+```
 
 ## Despliegue en Cloudflare Pages
 
-Conecta este repositorio y configura:
+Configura:
 
 - Framework preset: `Vue`
 - Build command: `npm run build`
@@ -28,25 +29,23 @@ Variables:
 
 ```env
 NODE_VERSION=22
-VITE_API_BASE_URL=https://<backend>.up.railway.app/api
+VITE_API_BASE_URL=https://<gateway-url>.up.railway.app/api
 ```
 
-Para este despliegue:
+El frontend no usa credenciales ni URLs de MySQL, RabbitMQ o Redis. Todo pasa por el Gateway.
+
+## Backend esperado
+
+El flujo de microservicios es:
+
+```text
+Cloudflare Frontend -> Railway Gateway -> Identity / Orders / Payments / Reporting
+```
+
+El origen actual de Cloudflare es:
 
 ```env
-VITE_API_BASE_URL=https://back-production-02fc.up.railway.app/api
+https://front-38m.pages.dev
 ```
 
-El código usa esa misma URL como fallback de producción, por lo que Cloudflare
-queda conectado incluso si la variable no está definida. La variable mantiene
-prioridad y permite cambiar el backend sin modificar el código.
-
-El archivo `public/_redirects` habilita el fallback de SPA y
-`public/_headers` agrega cabeceras básicas de seguridad.
-
-Cuando Cloudflare asigne el dominio, copia su origen exacto, sin `/` final, en
-`ALLOWED_ORIGINS` del servicio API en Railway. El origen actual es:
-
-```env
-ALLOWED_ORIGINS=https://front-38m.pages.dev
-```
+Ese valor debe ir en `AllowedOrigins` del servicio Gateway en Railway.
