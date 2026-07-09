@@ -140,7 +140,7 @@ async function login() {
   if (!result) return;
   persistSession(result);
   view.value = "home";
-  await loadHome();
+  loadHome();
 }
 
 async function register() {
@@ -161,7 +161,7 @@ async function register() {
   if (!result) return;
   persistSession(result);
   view.value = "home";
-  await loadHome();
+  loadHome();
 }
 
 function logout() {

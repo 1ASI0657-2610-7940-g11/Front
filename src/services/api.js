@@ -2,22 +2,40 @@ const DEFAULT_API_BASE_URL = "/api";
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL
 ).replace(/\/+$/, "");
+const DEFAULT_TIMEOUT_MS = 15000;
 
 async function request(path, options = {}) {
-  const { responseType = "json", ...fetchOptions } = options;
+  const {
+    responseType = "json",
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    ...fetchOptions
+  } = options;
   const headers = options.body instanceof FormData
     ? {}
     : { "Content-Type": "application/json" };
   const token = localStorage.getItem("fueltrack_token");
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...fetchOptions,
-    headers: {
-      ...headers,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {})
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...fetchOptions,
+      signal: controller.signal,
+      headers: {
+        ...headers,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {})
+      }
+    });
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error("La API tardó demasiado en responder. Intenta nuevamente.");
     }
-  });
+    throw err;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 
   if (response.status === 401) {
     localStorage.removeItem("fueltrack_token");
