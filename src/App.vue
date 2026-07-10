@@ -22,6 +22,8 @@ import {
 } from "lucide-vue-next";
 import { api } from "./services/api";
 
+const ENABLE_DASHBOARD_API = import.meta.env.VITE_ENABLE_DASHBOARD_API === "true";
+
 const session = reactive({
   token: localStorage.getItem("fueltrack_token") || "",
   user: JSON.parse(localStorage.getItem("fueltrack_user") || "null")
@@ -206,6 +208,17 @@ function handleUnauthorized() {
 }
 
 async function loadHome() {
+  if (!ENABLE_DASHBOARD_API) {
+    dashboard.value ??= {
+      companyName: session.user?.fullName || "Cliente FuelTrack SAC",
+      avatarUrl: null,
+      activeOrder: null,
+      nextDelivery: null,
+      lastPayment: null
+    };
+    return;
+  }
+
   const data = await runSilentTask(() => api.dashboard());
   if (data) {
     dashboard.value = data;
