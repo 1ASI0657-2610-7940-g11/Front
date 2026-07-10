@@ -189,6 +189,14 @@ async function loadAvatar(hasAvatar) {
   }
 }
 
+async function runSilentTask(task) {
+  try {
+    return await task();
+  } catch {
+    return null;
+  }
+}
+
 function handleUnauthorized() {
   session.token = "";
   session.user = null;
@@ -198,7 +206,7 @@ function handleUnauthorized() {
 }
 
 async function loadHome() {
-  const data = await runTask(() => api.dashboard());
+  const data = await runSilentTask(() => api.dashboard());
   if (data) {
     dashboard.value = data;
     await loadAvatar(Boolean(data.avatarUrl));
