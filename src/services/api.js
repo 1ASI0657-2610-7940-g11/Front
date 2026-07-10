@@ -78,6 +78,13 @@ export const api = {
     method: "POST",
     body: JSON.stringify(payload)
   }),
+  updateOrder: (id, payload) => request(`/orders/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  }),
+  deleteOrder: (id) => request(`/orders/${encodeURIComponent(id)}`, {
+    method: "DELETE"
+  }).then(() => true),
   paymentMethods: () => request("/payments/methods"),
   addPaymentMethod: (payload) => request("/payments/methods", {
     method: "POST",

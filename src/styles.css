@@ -183,7 +183,8 @@ textarea:focus,
 }
 
 .primary-action,
-.secondary-action {
+.secondary-action,
+.danger-action {
   border: 0;
   border-radius: 8px;
   min-height: 48px;
@@ -212,6 +213,15 @@ textarea:focus,
 .secondary-action {
   color: #0b743d;
   background: #e8f7ee;
+}
+
+.danger-action {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.danger-action:hover {
+  background: #fecaca;
 }
 
 .check-row {
@@ -480,6 +490,13 @@ textarea:focus,
 .form-layout {
   display: grid;
   gap: 16px;
+}
+
+.detail-actions,
+.form-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .table-card {

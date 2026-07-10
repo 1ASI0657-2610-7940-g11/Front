@@ -16,8 +16,10 @@ import {
   LogOut,
   Mail,
   MapPin,
+  Pencil,
   Plus,
   ShieldCheck,
+  Trash2,
   User
 } from "lucide-vue-next";
 import { api } from "./services/api";
@@ -67,6 +69,15 @@ const newOrder = reactive({
   notes: ""
 });
 
+const editOrder = reactive({
+  id: "",
+  fuelType: "Diesel B5",
+  quantityGallons: "1000",
+  address: "",
+  timeWindow: "Manana (7:00 - 11:00)",
+  notes: ""
+});
+
 const paymentForm = reactive({
   brand: "Visa",
   cardNumber: "",
@@ -95,6 +106,7 @@ const currentTitle = computed(() => ({
   home: "Inicio",
   orders: "Pedidos",
   newOrder: "Nuevo pedido",
+  editOrder: "Editar pedido",
   orderDetail: "Detalle del pedido",
   payments: "Pagos",
   profile: "Perfil"
@@ -208,6 +220,9 @@ function handleUnauthorized() {
 }
 
 async function loadHome() {
+  view.value = "home";
+  clearMessages();
+
   if (!ENABLE_DASHBOARD_API) {
     dashboard.value ??= {
       companyName: session.user?.fullName || "Cliente FuelTrack SAC",
@@ -235,8 +250,35 @@ async function loadOrders() {
 async function openOrder(id) {
   selectedOrderId.value = id;
   view.value = "orderDetail";
+  orderDetail.value = null;
   const data = await runTask(() => api.orderDetail(id));
   if (data) orderDetail.value = data;
+}
+
+function resetNewOrder() {
+  newOrder.fuelType = "Diesel B5";
+  newOrder.quantityGallons = "1000";
+  newOrder.address = "";
+  newOrder.timeWindow = "Manana (7:00 - 11:00)";
+  newOrder.notes = "";
+}
+
+function startNewOrder() {
+  resetNewOrder();
+  view.value = "newOrder";
+  clearMessages();
+}
+
+function startEditOrder() {
+  if (!orderDetail.value) return;
+  editOrder.id = orderDetail.value.id;
+  editOrder.fuelType = orderDetail.value.product || "Diesel B5";
+  editOrder.quantityGallons = String(orderDetail.value.quantityGallons || 1000);
+  editOrder.address = orderDetail.value.address || "";
+  editOrder.timeWindow = orderDetail.value.timeWindow || "Manana (7:00 - 11:00)";
+  editOrder.notes = orderDetail.value.notes || "";
+  view.value = "editOrder";
+  clearMessages();
 }
 
 async function submitOrder() {
@@ -256,14 +298,57 @@ async function submitOrder() {
 
   if (!created) return;
   orders.value = [created, ...orders.value.filter((order) => order.id !== created.id)];
-  newOrder.address = "";
-  newOrder.quantityGallons = "1000";
-  newOrder.notes = "";
+  resetNewOrder();
   view.value = "orders";
   runSilentTask(async () => {
     const data = await api.orders();
     if (data) orders.value = data;
   });
+}
+
+async function saveEditedOrder() {
+  const quantity = Number(editOrder.quantityGallons);
+  if (!editOrder.address || !quantity) {
+    error.value = "Completa direccion y cantidad para actualizar el pedido.";
+    return;
+  }
+
+  const updated = await runTask(() => api.updateOrder(editOrder.id, {
+    fuelType: editOrder.fuelType,
+    quantityGallons: quantity,
+    address: editOrder.address,
+    timeWindow: editOrder.timeWindow,
+    notes: editOrder.notes
+  }), "Pedido actualizado correctamente.");
+
+  if (!updated) return;
+  orderDetail.value = updated;
+  orders.value = orders.value.map((order) => (
+    order.id === updated.id
+      ? {
+          ...order,
+          fuelType: updated.product,
+          quantityGallons: updated.quantityGallons,
+          scheduledAt: updated.eta,
+          status: updated.status
+        }
+      : order
+  ));
+  view.value = "orderDetail";
+}
+
+async function deleteSelectedOrder() {
+  if (!orderDetail.value) return;
+  const confirmed = window.confirm(`Eliminar el pedido ${orderDetail.value.code || orderDetail.value.id}? Esta accion no se puede deshacer.`);
+  if (!confirmed) return;
+
+  const deleted = await runTask(() => api.deleteOrder(orderDetail.value.id), "Pedido eliminado correctamente.");
+  if (deleted) {
+    orders.value = orders.value.filter((order) => order.id !== orderDetail.value.id);
+    orderDetail.value = null;
+    selectedOrderId.value = "";
+    view.value = "orders";
+  }
 }
 
 async function loadPayments() {
@@ -489,7 +574,7 @@ onBeforeUnmount(() => {
           <p class="eyebrow">{{ greeting }}</p>
           <h1>{{ currentTitle }}</h1>
         </div>
-        <button class="primary-action compact" @click="view = 'newOrder'; clearMessages()"><Plus :size="18" /> Nuevo pedido</button>
+        <button class="primary-action compact" @click="startNewOrder"><Plus :size="18" /> Nuevo pedido</button>
       </header>
 
       <p v-if="error" class="alert error">{{ error }}</p>
@@ -604,6 +689,10 @@ onBeforeUnmount(() => {
 
       <section v-if="view === 'orderDetail'" class="content-stack">
         <button class="back-link" @click="loadOrders"><ArrowLeft :size="16" /> Volver a pedidos</button>
+        <div v-if="orderDetail" class="detail-actions">
+          <button class="secondary-action" type="button" @click="startEditOrder"><Pencil :size="16" /> Editar pedido</button>
+          <button class="danger-action" type="button" @click="deleteSelectedOrder"><Trash2 :size="16" /> Eliminar pedido</button>
+        </div>
         <div v-if="orderDetail" class="detail-grid">
           <article class="summary-card wide">
             <div class="card-icon"><CheckCircle2 :size="22" /></div>
@@ -625,6 +714,7 @@ onBeforeUnmount(() => {
             <p><Building2 :size="16" /> {{ orderDetail.plant }}</p>
             <p><MapPin :size="16" /> {{ orderDetail.address }}</p>
             <p><Clock3 :size="16" /> {{ orderDetail.timeWindow }}</p>
+            <p v-if="orderDetail.notes"><Pencil :size="16" /> {{ orderDetail.notes }}</p>
           </article>
 
           <article class="info-panel">
@@ -633,6 +723,59 @@ onBeforeUnmount(() => {
             <p><CircleDollarSign :size="16" /> {{ orderDetail.amount ? money(orderDetail.amount) : 'Monto pendiente' }}</p>
           </article>
         </div>
+      </section>
+
+      <section v-if="view === 'editOrder'" class="form-layout">
+        <button class="back-link" @click="view = 'orderDetail'; clearMessages()"><ArrowLeft :size="16" /> Volver al detalle</button>
+        <form class="panel-form" @submit.prevent="saveEditedOrder">
+          <h2>Editar pedido</h2>
+          <p class="muted">Modifica combustible, cantidad, direccion, horario o notas del pedido.</p>
+
+          <label>Tipo de combustible
+            <select v-model="editOrder.fuelType">
+              <option>Diesel B5</option>
+              <option>Gasohol 95</option>
+              <option>Gasohol 97</option>
+            </select>
+          </label>
+
+          <label>Cantidad requerida
+            <input v-model="editOrder.quantityGallons" inputmode="numeric" />
+          </label>
+
+          <div class="preset-row">
+            <button type="button" @click="editOrder.quantityGallons = '1000'">1,000 gal</button>
+            <button type="button" @click="editOrder.quantityGallons = '2000'">2,000 gal</button>
+            <button type="button" @click="editOrder.quantityGallons = '5000'">5,000 gal</button>
+          </div>
+
+          <label>Direccion de descarga
+            <input v-model="editOrder.address" placeholder="Av. Industrial 123, Callao" />
+          </label>
+
+          <label>Franja horaria preferida
+            <select v-model="editOrder.timeWindow">
+              <option>Manana (7:00 - 11:00)</option>
+              <option>Tarde (13:00 - 17:00)</option>
+              <option>Noche (19:00 - 22:00)</option>
+            </select>
+          </label>
+
+          <label>Notas para el proveedor
+            <textarea v-model="editOrder.notes" rows="4" placeholder="Instrucciones especiales, contacto en planta, etc."></textarea>
+          </label>
+
+          <div class="form-actions">
+            <button class="primary-action" type="submit" :disabled="loading">
+              <Loader2 v-if="loading" class="spin" :size="18" />
+              Guardar cambios
+            </button>
+            <button class="danger-action" type="button" :disabled="loading" @click="deleteSelectedOrder">
+              <Trash2 :size="16" />
+              Eliminar pedido
+            </button>
+          </div>
+        </form>
       </section>
 
       <section v-if="view === 'payments'" class="content-stack">
