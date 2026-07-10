@@ -242,10 +242,15 @@ async function submitOrder() {
   }), "Pedido creado correctamente.");
 
   if (!created) return;
+  orders.value = [created, ...orders.value.filter((order) => order.id !== created.id)];
   newOrder.address = "";
   newOrder.quantityGallons = "1000";
   newOrder.notes = "";
-  await loadOrders();
+  view.value = "orders";
+  runSilentTask(async () => {
+    const data = await api.orders();
+    if (data) orders.value = data;
+  });
 }
 
 async function loadPayments() {
